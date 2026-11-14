@@ -185,6 +185,50 @@ def run_change():
 
 
 run_change()
+coverage = api(analyst, "GET", p + "/coverage")
+changed = next(row for row in coverage["requirements"] if row["code"] == "FR-014")
+assert changed["business"] == ["BR-001"]
+assert "TC-11" in changed["tests"] and "TC-08" not in changed["tests"]
+assert changed["stale_links"] == 1
+assert coverage["eligible"] == 2 and coverage["covered"] == 1
+export = httpx.get(base + "/api" + p + "/export/matrix?format=csv", headers=analyst)
+assert export.status_code == 200 and "FR-014" in export.text
+rework = api(
+    analyst,
+    "POST",
+    p + "/requirements",
+    201,
+    json={
+        "code": "FR-" + uuid4().hex[:10].upper(),
+        "kind": "FUNCTIONAL",
+        "title": "Review fixture",
+        "description": "A requirement awaiting review",
+        "source": "ServiceHub",
+        "criteria": "Verify the transition.",
+    },
+)
+initial = rework["version"]
+reviewer_id = api(reviewer, "GET", "/me")["id"]
+api(
+    analyst,
+    "POST",
+    p + "/versions/" + initial["id"] + "/submit",
+    json={"reviewer": reviewer_id, "revision": initial["revision"]},
+)
+api(
+    reviewer,
+    "POST",
+    p + "/versions/" + initial["id"] + "/review",
+    json={"decision": "CHANGES_REQUESTED", "comment": "Include alternate path"},
+)
+successor = api(
+    analyst,
+    "POST",
+    p + "/nodes/" + rework["node"]["id"] + "/versions",
+    201,
+    json={"reason": "Describe alternate path"},
+)
+assert successor["status"] == "DRAFT" and successor["number"] == 2
 foreign = api(
     admin,
     "POST",

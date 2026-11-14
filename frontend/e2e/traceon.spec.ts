@@ -216,3 +216,22 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   await expect(page.getByText(/requirements · \+0 · −0 · Δ1/)).toBeVisible();
   await capture(page, "baseline");
 });
+
+test("mobile workspace renders user text literally", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await login(page, "analyst");
+  const markup = "<b>ServiceHub fixture</b>";
+  await page.getByLabel("Код", { exact: true }).fill("TEXT-" + Date.now());
+  await page.getByLabel("Название", { exact: true }).fill(markup);
+  await page.getByRole("button", { name: "Создать проект" }).click();
+  await expect(
+    page.getByRole("heading", { name: markup, exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: markup, exact: true }).locator("b"),
+  ).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBe(390);
+});

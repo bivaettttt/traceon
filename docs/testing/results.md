@@ -10,7 +10,7 @@
 | TC-006 | FR-008 | Matrix reads live links and derived quality checks. Coverage denominator is approved FRs |
 | TC-007 | FR-010, NFR-002 | Browser creates a project and graph, then runs ServiceHub through analysis, review and baseline comparison |
 
-Observed: 3 pytest tests and 2 Chromium flows passed. The Compose integration script verified isolation, concurrent edits, workflow, graph and immutable baselines. Both BPMN files passed OMG XSD validation. Frontend type check and production build passed. CI validates OpenAPI drift, diagrams' XML references, repository links and common secret signatures.
+Observed: 3 pytest tests and 3 Chromium flows passed. The Compose integration script verified isolation, concurrent edits, workflow, graph and immutable baselines. Both BPMN files passed OMG XSD validation. Frontend type check and production build passed. CI validates OpenAPI drift, diagrams' XML references, repository links and common secret signatures.
 
 ```sh
 python -m venv .venv
@@ -28,3 +28,5 @@ npm ci
 npx playwright install chromium
 npm run e2e
 ```
+
+The coverage integration check verifies BR-001 as a business origin and distinguishes TC-08's stale version pin from TC-11's current transitive path. The browser verifies text renders literally at 390 px. The API check verifies the return-for-changes workflow and CSV export.
