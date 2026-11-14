@@ -1,0 +1,496 @@
+:root {
+  font-family: "IBM Plex Sans", sans-serif;
+  background: #f4f3f8;
+  color: #241e35;
+  --line: #e0dce9;
+  --accent: #5537a6;
+  --muted: #5f5871;
+  --paper: white;
+  --soft: #f2edfd;
+  --nav: #211a35;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  background: white;
+  color: #29213b;
+  border: 1px solid #cec6dc;
+  padding: 0.52rem 0.72rem;
+  border-radius: 7px;
+  font-weight: 600;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button,
+a,
+input,
+textarea,
+select {
+  outline-offset: 3px;
+}
+:focus-visible {
+  outline: 2px solid #7045e3;
+}
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: white;
+  padding: 0.62rem 0.85rem;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.primary:hover {
+  background: #432784;
+  text-decoration: none;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+code,
+pre {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+}
+pre {
+  background: #f5f2fa;
+  border-radius: 6px;
+  padding: 0.8rem;
+  overflow: auto;
+  max-height: 34rem;
+}
+.top {
+  height: 60px;
+  background: white;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+.top > .actions {
+  margin-left: auto;
+  font-size: 0.86rem;
+}
+.topline,
+.muted,
+.heading p {
+  color: var(--muted);
+}
+.brand {
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #2b2046;
+}
+.brand span {
+  color: white;
+  background: #6546b5;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+.top button {
+  display: inline-flex;
+}
+.shell {
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr);
+  min-height: calc(100vh - 60px);
+}
+.shell aside {
+  padding: 0.8rem;
+  background: var(--nav);
+  color: #f4efff;
+  position: sticky;
+  top: 60px;
+  align-self: start;
+  height: calc(100vh - 60px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.shell aside nav {
+  display: grid;
+  gap: 0.21rem;
+  margin-top: 1.05rem;
+}
+.shell aside a {
+  color: #ded4f3;
+  padding: 0.56rem 0.48rem;
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  border-radius: 6px;
+  font-size: 0.87rem;
+}
+.shell aside a.active,
+.shell aside a:hover {
+  background: #3b3058;
+  color: white;
+  text-decoration: none;
+}
+.shell aside a.active svg {
+  color: #d3baff;
+}
+.project span {
+  display: grid;
+  place-items: center;
+  background: #5c4786;
+  color: white;
+  border-radius: 8px;
+  width: 39px;
+  height: 39px;
+  flex: none;
+  font-weight: 600;
+}
+.project strong,
+.project small {
+  display: block;
+}
+.project small,
+.shell footer {
+  color: #c3b3de;
+  font-size: 0.76rem;
+}
+.shell footer {
+  margin-top: auto;
+  padding: 0.7rem 0.45rem;
+  border-top: 1px solid #463958;
+}
+.shell main,
+.landing {
+  width: 100%;
+  max-width: 1510px;
+  margin: 0 auto;
+  padding: 1.55rem 1.6rem 3rem;
+}
+.landing {
+  max-width: 1150px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.35rem 0 1.2rem;
+}
+.heading h1 {
+  font-size: clamp(1.65rem, 3.5vw, 2.45rem);
+  letter-spacing: -0.042em;
+  line-height: 1.1;
+}
+.heading p {
+  margin-top: 0.4rem;
+  overflow-wrap: anywhere;
+}
+.panel {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.panelhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.78rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.panelhead h2 {
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+.pad {
+  padding: 0.85rem 1rem;
+}
+.metrics {
+  background: #352853;
+  border-radius: 9px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
+  color: white;
+  margin-bottom: 1rem;
+}
+.metrics > div {
+  border-right: 1px solid #55456f;
+  padding: 0.8rem 0.9rem;
+}
+.metrics > div:last-child {
+  border: 0;
+}
+.metrics small {
+  font-size: 0.76rem;
+  color: #e3d9f5;
+}
+.metrics strong {
+  font-size: 1.85rem;
+  display: block;
+  line-height: 1.3;
+}
+.tablewrap {
+  overflow: auto;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+  font-size: 0.88rem;
+}
+th,
+td {
+  padding: 0.61rem 0.85rem;
+  border-bottom: 1px solid #eeeaf4;
+  min-width: 75px;
+}
+th {
+  font-weight: 600;
+  color: #5d5372;
+  background: #f8f6fb;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+td a {
+  font-weight: 600;
+}
+tr:last-child td {
+  border: 0;
+}
+.badge {
+  display: inline-flex;
+  white-space: nowrap;
+  color: #52338a;
+  background: #ede5fb;
+  border-radius: 5px;
+  padding: 0.18rem 0.45rem;
+  font-size: 0.77rem;
+  font-weight: 600;
+}
+.badge.green {
+  color: #206048;
+  background: #e2f4ea;
+}
+.badge.amber {
+  color: #744e17;
+  background: #fbefd6;
+}
+.toolbar {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.toolbar label {
+  flex: 1;
+  min-width: 120px;
+  max-width: 320px;
+}
+.form,
+.stack {
+  display: grid;
+  gap: 0.72rem;
+}
+.form {
+  max-width: 720px;
+}
+.form button {
+  justify-self: start;
+}
+label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+input,
+select,
+textarea {
+  border: 1px solid #c8bfd8;
+  min-width: 0;
+  padding: 0.54rem 0.65rem;
+  border-radius: 6px;
+  color: #221832;
+  background: white;
+  width: 100%;
+}
+textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.check input {
+  width: auto;
+}
+.split {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 1rem;
+}
+.bodytext {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.stack h3 {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin-bottom: 0.23rem;
+}
+.error,
+.notice {
+  padding: 0.68rem 0.8rem;
+  margin: 0 0 0.8rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+.error {
+  background: #fbe7e7;
+  color: #8b303a;
+}
+.notice {
+  background: #f9efd8;
+  color: #634719;
+}
+.flow {
+  height: 400px;
+  border-top: 1px solid var(--line);
+  background: #faf8fe;
+}
+.react-flow__node div {
+  font-size: 0.75rem;
+  margin-top: 0.2rem;
+}
+.steps {
+  margin: 0.7rem 0 1rem;
+  display: grid;
+  gap: 0.55rem;
+  padding: 0 2.2rem;
+}
+details {
+  padding: 0.65rem 0.95rem;
+  border-bottom: 1px solid var(--line);
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.login {
+  min-height: 100vh;
+  background: var(--nav);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.login section {
+  border-radius: 12px;
+  background: white;
+  width: min(100%, 430px);
+  padding: 1.7rem;
+  display: grid;
+  gap: 0.75rem;
+}
+.login form {
+  display: grid;
+  gap: 0.8rem;
+}
+.login .primary {
+  justify-content: space-between;
+}
+.login p {
+  color: var(--muted);
+}
+@media (max-width: 950px) {
+  .shell {
+    grid-template-columns: 186px minmax(0, 1fr);
+  }
+  .shell main,
+  .landing {
+    padding: 1rem;
+  }
+  .split {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+@media (max-width: 660px) {
+  .shell {
+    display: block;
+  }
+  .shell aside {
+    position: static;
+    height: auto;
+  }
+  .shell aside nav {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0.3rem 0;
+  }
+  .shell aside nav a {
+    font-size: 0.72rem;
+    padding: 0.35rem;
+  }
+  .shell footer,
+  .topline {
+    display: none;
+  }
+  .heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .metrics > div {
+    border-bottom: 1px solid #55456f;
+  }
+  .flow {
+    height: 330px;
+  }
+}

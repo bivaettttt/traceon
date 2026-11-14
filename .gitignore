@@ -6,3 +6,5 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+test-results/
+playwright-report/

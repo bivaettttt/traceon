@@ -58,12 +58,14 @@ Actor = Annotated[dict, Depends(identity)]
 
 
 def scope(conn, project, actor, roles=(), *, write=False, allow_archived=False):
-    lock = " FOR UPDATE OF p" if write else ""
+    if write and not one(
+        conn, "SELECT id FROM projects WHERE id=:p FOR UPDATE", p=project
+    ):
+        raise HTTPException(404, "PROJECT_NOT_FOUND")
     record = one(
         conn,
         """SELECT p.*,m.role FROM projects p JOIN members m ON m.project_id=p.id
-                       WHERE p.id=:p AND m.actor=:u"""
-        + lock,
+                       WHERE p.id=:p AND m.actor=:u""",
         p=project,
         u=actor["id"],
     )

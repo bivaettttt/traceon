@@ -1,0 +1,17 @@
+sequenceDiagram
+ actor Author
+ participant API
+ participant DB as PostgreSQL
+ actor Reviewer
+ Author->>API: PATCH draft with revision
+ API->>DB: Lock project and update matching revision
+ alt Conflict
+ DB-->>API: No updated row
+ API-->>Author: HTTP 409
+ else Applied
+ DB-->>API: Updated draft
+ Author->>API: Submit with reviewer and revision
+ API->>DB: Seal content in IN_REVIEW
+ Reviewer->>API: Decide for exact version UUID
+ API->>DB: Lock project and store decision and audit
+ end

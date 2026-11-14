@@ -1,0 +1,10 @@
+stateDiagram-v2
+ [*] --> DRAFT
+ DRAFT --> IN_REVIEW: Author submits expected revision
+ IN_REVIEW --> APPROVED: Assigned reviewer approves
+ IN_REVIEW --> CHANGES_REQUESTED: Assigned reviewer returns
+ APPROVED --> [*]
+ CHANGES_REQUESTED --> [*]
+ note right of CHANGES_REQUESTED
+  A separate version can start in DRAFT
+ end note

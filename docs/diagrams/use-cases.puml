@@ -1,0 +1,18 @@
+@startuml
+left to right direction
+actor Analyst
+actor Reviewer
+actor "Project manager" as Manager
+rectangle Traceon {
+  usecase "Edit requirement draft" as Edit
+  usecase "Analyze dependency impact" as Impact
+  usecase "Review exact version" as Review
+  usecase "Decide on change request" as Change
+  usecase "Capture and compare baselines" as Baseline
+}
+Analyst --> Edit
+Analyst --> Impact
+Reviewer --> Review
+Reviewer --> Change
+Manager --> Baseline
+@enduml

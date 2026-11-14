@@ -1,0 +1,23 @@
+classDiagram
+ class Project
+ class User
+ class Membership
+ class Requirement
+ class RequirementVersion
+ class Artifact
+ class TraceLink
+ class Review
+ class ChangeRequest
+ class ImpactAnalysis
+ class Baseline
+ Project "1" --> "*" Membership
+ Membership "*" --> "1" User
+ Project "1" --> "*" Requirement
+ Project "1" --> "*" Artifact
+ Requirement "1" --> "*" RequirementVersion
+ RequirementVersion "1" --> "0..1" Review
+ Requirement --> TraceLink
+ Artifact --> TraceLink
+ RequirementVersion --> ChangeRequest : linked revision
+ ChangeRequest --> ImpactAnalysis
+ Baseline --> RequirementVersion : frozen payload and ID

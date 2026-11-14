@@ -113,6 +113,23 @@ def coverage(conn, project, data=None):
             for f in findings
             if f["path"][-1]["kind"] == "IMPLEMENTED_BY" and not f["stale"]
         ]
+        structural = [
+            edge
+            for edge in data["links"]
+            if edge["kind"] in {"REFINES", "DERIVES_FROM"} and not edge["stale"]
+        ]
+        business = [
+            candidate["code"]
+            for candidate in data["nodes"]
+            if candidate["kind"] == "BUSINESS"
+            and (
+                candidate["id"] == node["id"]
+                or any(
+                    outcome["node_id"] == node["id"]
+                    for outcome in impact(candidate["id"], structural)
+                )
+            )
+        ]
         missing = [
             field
             for field in ("description", "source", "criteria")
@@ -127,6 +144,7 @@ def coverage(conn, project, data=None):
                 "approved": bool(node["approved_id"]),
                 "tests": tests,
                 "designs": designs,
+                "business": business,
                 "stale_links": sum(link["stale"] for link in outgoing),
                 "unapproved_revision": node["latest_id"] != node["approved_id"],
                 "missing_fields": missing,

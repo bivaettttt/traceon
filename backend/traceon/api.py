@@ -2,7 +2,7 @@ import csv
 import io
 import logging
 from contextlib import contextmanager
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -222,18 +222,24 @@ def registry(
     kind: c.RequirementKind | None = None,
     status: str | None = None,
     priority: str | None = None,
+    sort: Literal["code", "title", "newest"] = "code",
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
+    order = {
+        "code": "n.code",
+        "title": "v.title,n.code",
+        "newest": "v.created_at DESC,n.code",
+    }[sort]
     with workspace(project, actor) as (conn, _):
         return many(
             conn,
-            """SELECT n.id,n.code,n.kind,v.id AS version_id,v.title,v.status,v.priority,v.number
+            f"""SELECT n.id,n.code,n.kind,v.id AS version_id,v.title,v.status,v.priority,v.number
             FROM nodes n JOIN LATERAL(SELECT * FROM versions WHERE node_id=n.id ORDER BY number DESC LIMIT 1) v ON true
             WHERE n.project_id=:p AND NOT n.archived AND (n.code ILIKE :pattern OR v.title ILIKE :pattern)
             AND (CAST(:kind AS text) IS NULL OR n.kind=:kind)
             AND (CAST(:status AS text) IS NULL OR v.status=:status)
             AND (CAST(:priority AS text) IS NULL OR v.priority=:priority)
-            ORDER BY n.code LIMIT 100 OFFSET :offset""",
+            ORDER BY {order} LIMIT 100 OFFSET :offset""",
             p=project,
             pattern=f"%{q}%",
             kind=kind,

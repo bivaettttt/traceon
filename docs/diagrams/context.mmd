@@ -1,0 +1,10 @@
+C4Context
+Person(a, "Analyst", "Creates and traces requirements")
+Person(r, "Reviewer", "Reviews versions and changes")
+Person(m, "Project manager", "Manages scope and baselines")
+Person(s, "Administrator", "Manages accounts")
+System(t, "Traceon", "Requirements and explainable impact analysis")
+Rel(a,t,"Edits and analyzes")
+Rel(r,t,"Reviews")
+Rel(m,t,"Manages projects")
+Rel(s,t,"Manages users")

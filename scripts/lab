@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+export TRACEON_PORT="${TRACEON_LAB_PORT:-8101}"
+case "${1:-up}" in
+  up) docker compose -p traceon-lab up --build -d --wait ;;
+  stop) docker compose -p traceon-lab down ;;
+  reset)
+    docker compose -p traceon-lab down -v
+    docker compose -p traceon-lab up --build -d --wait
+    ;;
+  *) echo 'Usage: scripts/lab [up|stop|reset]' >&2; exit 2 ;;
+esac

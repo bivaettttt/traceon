@@ -1,0 +1,12 @@
+stateDiagram-v2
+ [*] --> NEW
+ NEW --> UNDER_ANALYSIS
+ UNDER_ANALYSIS --> IMPACT_REVIEW: All findings assessed
+ IMPACT_REVIEW --> UNDER_ANALYSIS: Return for further analysis
+ IMPACT_REVIEW --> APPROVED: Independent review
+ IMPACT_REVIEW --> REJECTED
+ APPROVED --> IMPLEMENTED: Approved linked revision
+ IMPLEMENTED --> VERIFIED: Verification evidence
+ VERIFIED --> CLOSED
+ CLOSED --> [*]
+ REJECTED --> [*]

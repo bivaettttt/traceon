@@ -1,0 +1,10 @@
+C4Container
+Person(u,"Project member")
+System_Boundary(trace,"Traceon"){
+ Container(ui,"Workspace","React and nginx","Registry, graph and review")
+ Container(api,"API","FastAPI","Permissions, workflow, impact and reporting")
+ ContainerDb(db,"State","PostgreSQL","Requirements, links, and immutable snapshots")
+}
+Rel(u,ui,"Uses")
+Rel(ui,api,"Calls","HTTPS in a deployed environment")
+Rel(api,db,"Reads and writes","SQL")
