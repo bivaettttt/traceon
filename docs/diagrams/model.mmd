@@ -1,0 +1,12 @@
+erDiagram
+ PROJECTS ||--o{ MEMBERS : grants
+ USERS ||--o{ MEMBERS : participates
+ PROJECTS ||--o{ NODES : contains
+ NODES ||--o{ VERSIONS : versions
+ VERSIONS ||--o{ REVIEWS : reviewed
+ NODES ||--o{ LINKS : source
+ NODES ||--o{ LINKS : target
+ PROJECTS ||--o{ BASELINES : captures
+ PROJECTS ||--o{ CHANGES : tracks
+ CHANGES ||--o{ ANALYSES : assesses
+ ANALYSES ||--o{ IMPACT_DECISIONS : adjudicates

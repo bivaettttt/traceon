@@ -1,0 +1,12 @@
+sequenceDiagram
+ actor Analyst
+ participant API
+ participant Analysis
+ participant PostgreSQL
+ Analyst->>API: Run impact for source version
+ API->>Analysis: Authorized project, version
+ Analysis->>PostgreSQL: Lock project and read graph
+ Analysis->>Analysis: Typed breadth-first traversal
+ Analysis->>PostgreSQL: Store epoch, graph and paths
+ PostgreSQL-->>API: Immutable evidence snapshot
+ API-->>Analyst: Findings and review status
