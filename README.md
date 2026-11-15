@@ -11,4 +11,6 @@ docker compose up --build
 
 [Локальный стенд / Local workspace](http://127.0.0.1:8100) · [Architecture](docs/architecture/model.md) · [Test results](docs/testing/results.md)
 
-![Traceon · ServiceHub](assets/screenshots/impact.png)
+[![Traceability Workbench · ServiceHub](assets/screenshots/dashboard.png)](assets/screenshots/dashboard.png)
+
+[Граф / Dependency graph](assets/screenshots/graph.png) · [Анализ влияния / Impact analysis](assets/screenshots/impact.png) · [Сравнение снимков / Baseline comparison](assets/screenshots/baseline.png)

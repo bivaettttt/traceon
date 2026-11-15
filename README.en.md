@@ -30,6 +30,12 @@ The modular monolith uses Python, FastAPI, Pydantic, SQLAlchemy, Alembic and Pos
 
 [Requirements and permissions](docs/analysis/mvp.md) · [Model, diagrams and ADRs](docs/architecture/model.md) · [REST and OpenAPI](docs/api/usage.md) · [Checks and results](docs/testing/results.md) · [GitHub Actions](https://github.com/bivaettttt/traceon/actions)
 
+## Traceability Workbench
+
+Select a requirement from the project list. Open its dependencies, analyze a specific version, or create a linked change request. The registry restores filters and sorting when you return from a record. The CSV button exports the complete project registry. Impact findings explain both the stored relationship direction and the traversal direction. Baseline comparison presents before and after values by field.
+
+[Interface design decisions](docs/architecture/workbench.md) · [Workbench screenshot](assets/screenshots/dashboard.png) · [Baseline diff](assets/screenshots/baseline.png)
+
 ## Demonstrate
 
 Open FR-014 in ServiceHub. Create a request to require supervisor approval. Compare the direct path to the API and the transitive path to the data model and test. Assess the findings, request an independent decision, and approve the exact new revision. As manager, capture a new baseline and compare it with ServiceHub 1.0. [Interview walkthrough](docs/demo/interview.md) · [Live screenshots](assets/screenshots)
