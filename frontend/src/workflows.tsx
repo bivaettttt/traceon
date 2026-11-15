@@ -493,33 +493,60 @@ export function Impact() {
           }
         >
           {visible.length ? (
-            <ul className="findings">
-              {visible.map((finding) => {
-                const node = byId.get(finding.node_id);
-                const decision = decisions.get(finding.node_id);
-                return (
-                  <li key={finding.node_id}>
-                    <button
-                      type="button"
-                      aria-pressed={active?.node_id === finding.node_id}
-                      onClick={() => setSelected(finding.node_id)}
-                    >
-                      <span>
-                        <code>{node?.code}</code>{" "}
-                        <strong>{node?.display_title ?? node?.title}</strong>
-                      </span>
-                      <span className="finding-meta">
-                        {node?.kind} ·{" "}
-                        {finding.depth === 1 ? "Прямое" : "Косвенное"} ·{" "}
-                        {finding.depth} шага(-ов)
-                        {finding.stale ? " · Устарела привязка" : ""}
-                      </span>
-                      <Badge value={decision?.decision ?? "Ожидает оценки"} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <div className="pad mobile-finding">
+                <label>
+                  Находка
+                  <select
+                    value={active?.node_id ?? ""}
+                    onChange={(event) => setSelected(event.target.value)}
+                  >
+                    {visible.map((finding) => {
+                      const node = byId.get(finding.node_id);
+                      return (
+                        <option key={finding.node_id} value={finding.node_id}>
+                          {node?.code} ·{" "}
+                          {finding.depth === 1
+                            ? "прямое влияние"
+                            : "косвенное влияние"}{" "}
+                          ·{" "}
+                          {states[
+                            decisions.get(finding.node_id)?.decision ?? ""
+                          ] ?? "ждёт оценки"}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              </div>
+              <ul className="findings">
+                {visible.map((finding) => {
+                  const node = byId.get(finding.node_id);
+                  const decision = decisions.get(finding.node_id);
+                  return (
+                    <li key={finding.node_id}>
+                      <button
+                        type="button"
+                        aria-pressed={active?.node_id === finding.node_id}
+                        onClick={() => setSelected(finding.node_id)}
+                      >
+                        <span>
+                          <code>{node?.code}</code>{" "}
+                          <strong>{node?.display_title ?? node?.title}</strong>
+                        </span>
+                        <span className="finding-meta">
+                          {node?.kind} ·{" "}
+                          {finding.depth === 1 ? "Прямое" : "Косвенное"} ·{" "}
+                          глубина {finding.depth}
+                          {finding.stale ? " · Устарела привязка" : ""}
+                        </span>
+                        <Badge value={decision?.decision ?? "Ожидает оценки"} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           ) : (
             <Wait empty="Затронутых элементов для выбранного типа нет." />
           )}
@@ -527,8 +554,12 @@ export function Impact() {
         {active && (
           <Panel title={"Объяснение · " + byId.get(active.node_id)?.code}>
             <p className="pad muted">
-              Анализ отсчитывает путь от изменённой версии. Исходное направление
-              связи приведено для каждого шага.
+              {byId.get(active.node_id)?.display_title ??
+                byId.get(active.node_id)?.title}{" "}
+              · глубина {active.depth}
+              <br />
+              Путь отсчитывается от исходной версии. Каждый шаг показывает
+              сохранённое направление связи.
             </p>
             <ol className="steps impact-path">
               {active.path.map((step) => {

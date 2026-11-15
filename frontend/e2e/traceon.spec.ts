@@ -40,7 +40,13 @@ async function transition(page: Page, status: string) {
   await page
     .getByLabel("Комментарий / доказательство")
     .fill("Проверено в браузере");
+  const transition = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/transition"),
+  );
   await page.getByRole("button", { name: "Выполнить переход" }).click();
+  expect((await transition).ok()).toBeTruthy();
 }
 test("create a project and requirement, store an artifact and link", async ({
   page,
@@ -146,11 +152,19 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
     page.getByRole("heading", { name: "Затронутые элементы" }),
   ).toBeVisible();
   await expect(page.locator(".react-flow__edge").first()).toBeVisible();
-  await capture(page, "impact");
   const findings = page
     .getByRole("region", { name: "Затронутые элементы" })
     .getByRole("button");
   await expect(findings).toHaveCount(8);
+  await findings.filter({ hasText: "TC-11" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Объяснение · TC-11" }),
+  ).toBeVisible();
+  await capture(page, "impact");
+  await findings.filter({ hasText: "FR-021" }).click();
+  await expect(
+    page.getByText("Обход против стрелки", { exact: true }),
+  ).toBeVisible();
   const count = await findings.count();
   for (let i = 0; i < count; i++) {
     await findings.nth(i).click();
@@ -209,7 +223,9 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   await page
     .getByRole("link", { name: "Подтверждение сервисной заявки", exact: true })
     .click();
-  await page.getByLabel("Решение", { exact: true }).selectOption("APPROVED");
+  await page
+    .getByRole("combobox", { name: "Решение", exact: true })
+    .selectOption("APPROVED");
   await capture(page, "review");
   await page
     .getByLabel("Комментарий", { exact: true })
@@ -240,7 +256,11 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   await transition(page, "IMPLEMENTED");
   await transition(page, "VERIFIED");
   await transition(page, "CLOSED");
-  await expect(page.getByText("Закрыт", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("list", { name: "Ход изменения" })
+      .locator("[aria-current=step]"),
+  ).toHaveText("Закрыт");
   await swap(page, "manager");
   await page
     .getByRole("link", { name: "Базовые конфигурации", exact: true })
@@ -258,10 +278,8 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   ).toBeVisible();
   await expect(
     page
-      .locator(".diff-fields")
-      .getByText("Чувствительные заявки подтверждает руководитель.", {
-        exact: true,
-      }),
+      .locator(".diff-fields dd")
+      .filter({ hasText: "Чувствительные заявки подтверждает руководитель." }),
   ).toBeVisible();
   await capture(page, "baseline");
 });

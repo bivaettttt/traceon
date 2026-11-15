@@ -39,8 +39,36 @@ const ariaLabels = {
   "controls.fitView.ariaLabel": "Показать весь граф",
 };
 
-function layout(graph: Graph, origin?: string) {
+function layout(graph: Graph, origin?: string, centered = false) {
   const sorted = [...graph.nodes].sort((a, b) => a.code.localeCompare(b.code));
+  if (centered && origin) {
+    const outgoing = new Set(
+      graph.links
+        .filter((edge) => edge.source_id === origin)
+        .map((edge) => edge.target_id),
+    );
+    const incoming = sorted.filter(
+      (node) => node.id !== origin && !outgoing.has(node.id),
+    );
+    const other = sorted.filter(
+      (node) => node.id !== origin && outgoing.has(node.id),
+    );
+    return new Map([
+      [origin, { x: 0, y: 0 }],
+      ...[incoming, other].flatMap((column, side) =>
+        column.map(
+          (node, index) =>
+            [
+              node.id,
+              {
+                x: side === 0 ? -285 : 285,
+                y: (index - (column.length - 1) / 2) * 99,
+              },
+            ] as const,
+        ),
+      ),
+    ]);
+  }
   const adjacent = new Map(sorted.map((node) => [node.id, new Set<string>()]));
   for (const edge of graph.links) {
     adjacent.get(edge.source_id)?.add(edge.target_id);
@@ -136,8 +164,8 @@ export function Diagram({
     [graph.links, shownIds],
   );
   const positions = useMemo(
-    () => layout({ nodes: shown, links: graphLinks }, origin),
-    [shown, graphLinks, origin],
+    () => layout({ nodes: shown, links: graphLinks }, origin, scope === "near"),
+    [shown, graphLinks, origin, scope],
   );
   const current = byId.get(selection);
   const nodes = useMemo<Node[]>(
@@ -272,7 +300,22 @@ export function Diagram({
       </p>
       {view === "canvas" ? (
         shown.length > 0 ? (
-          <div className="flow">
+          <div
+            className="flow"
+            onKeyDownCapture={(event) => {
+              if (
+                !["Enter", " ", "Escape"].includes(event.key) ||
+                !(event.target instanceof HTMLElement)
+              )
+                return;
+              const node =
+                event.target.closest<HTMLElement>(".react-flow__node");
+              if (!node?.dataset.id) return;
+              event.preventDefault();
+              event.stopPropagation();
+              setSelection(event.key === "Escape" ? "" : node.dataset.id);
+            }}
+          >
             <ReactFlow
               key={scope + (origin ?? "")}
               nodes={nodes}

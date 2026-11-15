@@ -151,7 +151,7 @@ export function Registry() {
               type="search"
               name="q"
               defaultValue={params.get("q") ?? ""}
-              placeholder="Код или заголовок"
+              placeholder="Код или название"
             />
           </label>
           <details

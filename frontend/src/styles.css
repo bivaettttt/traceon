@@ -389,6 +389,7 @@ textarea {
   display: grid;
   grid-template-columns: 1.55fr 1fr;
   gap: 1rem;
+  align-items: start;
 }
 .bodytext {
   white-space: pre-wrap;
@@ -1170,4 +1171,19 @@ button[aria-pressed="true"] {
   height: 4px;
   min-width: 4px;
   min-height: 4px;
+}
+
+html {
+  scroll-padding-top: 68px;
+}
+.mobile-finding {
+  display: none;
+}
+@media (max-width: 660px) {
+  .mobile-finding {
+    display: block;
+  }
+  .impact-columns .findings {
+    display: none;
+  }
 }
