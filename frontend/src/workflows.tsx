@@ -1,10 +1,16 @@
+import { BaselineDiff, type Diff, type Snapshot } from "./baseline-diff";
+import { Diagram } from "./diagram";
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useContext } from "./context";
 import { useData, useWrite, type Report, type Row, type Version } from "./api";
 import {
   Badge,
-  Diagram,
   ErrorBox,
   Export,
   Grid,
@@ -16,10 +22,12 @@ import {
   datetime,
   short,
   states,
+  priorities,
 } from "./ui";
 
 export function Changes() {
   const { path, project } = useContext();
+  const [query] = useSearchParams();
   const items = useData<Row[]>(path + "/changes");
   const reqs = useData<Row[]>(path + "/requirements");
   const nav = useNavigate();
@@ -52,7 +60,12 @@ export function Changes() {
           >
             <label>
               Требование
-              <select name="node_id" required>
+              <select
+                name="node_id"
+                required
+                key={reqs.isPending ? "loading" : "ready"}
+                defaultValue={query.get("requirement") ?? ""}
+              >
                 <option value="">Выберите</option>
                 {reqs.data?.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -100,7 +113,7 @@ const transitions: Record<string, string[]> = {
 };
 export function Change() {
   const { id } = useParams();
-  const { path, project } = useContext();
+  const { path, project, user } = useContext();
   const nav = useNavigate();
   const endpoint = path + "/changes/" + id;
   const change = useData<Row & { analyses: Row[]; history: Row[] }>(endpoint);
@@ -111,21 +124,64 @@ export function Change() {
   const save = useWrite();
   const analyze = useWrite<Row>((r) => nav("../impact/" + r.id));
   const [version, setVersion] = useState("");
+  const latest = change.data?.analyses[0];
+  const latestReport = useData<Report>(
+    path + "/analyses/" + latest?.id,
+    Boolean(latest),
+  );
   if (change.isPending) return <Wait pending />;
   if (change.error) return <ErrorBox error={change.error} />;
   const item = change.data;
   const reviewer = project?.role === "REVIEWER";
   const allowed =
-    reviewer === (item.status === "IMPACT_REVIEW")
+    reviewer === (item.status === "IMPACT_REVIEW") &&
+    !(reviewer && item.author === user.id)
       ? (transitions[item.status] ?? [])
       : [];
+  const report = latestReport.data;
+  const missing = report
+    ? report.snapshot.findings.length - report.decisions.length
+    : null;
+  const blocker = !latest
+    ? "Сначала запустите анализ влияния."
+    : report?.stale
+      ? "Граф изменился. Нужен новый анализ."
+      : missing
+        ? "Оцените оставшиеся находки: " + missing + "."
+        : "";
+  const lifecycle = [
+    "NEW",
+    "UNDER_ANALYSIS",
+    "IMPACT_REVIEW",
+    "APPROVED",
+    "IMPLEMENTED",
+    "VERIFIED",
+    "CLOSED",
+  ];
   return (
     <>
       <Link to="../changes">← Реестр изменений</Link>
       <Head title={item.title} description={"CR-" + short(item.id)}>
         <Badge value={item.status} />
       </Head>
-      <ErrorBox error={save.error ?? analyze.error ?? node.error} />
+      <ErrorBox
+        error={save.error ?? analyze.error ?? node.error ?? latestReport.error}
+      />
+      <ol className="lifecycle" aria-label="Ход изменения">
+        {lifecycle.map((status) => (
+          <li
+            key={status}
+            aria-current={item.status === status ? "step" : undefined}
+          >
+            {states[status]}
+          </li>
+        ))}
+      </ol>
+      {item.status === "IMPACT_REVIEW" && !allowed.length && (
+        <p className="notice">
+          Дальнейшее решение принимает независимый ревьюер.
+        </p>
+      )}
       <Panel
         title="Предложение"
         action={<Export path={path + "/export/change?identifier=" + id} />}
@@ -135,20 +191,53 @@ export function Change() {
             <strong>Причина</strong> {String(item.reason)}
           </p>
           <p>{String(item.proposal)}</p>
-          <p>Риск {String(item.risk)}</p>
-          <Link to={"../requirements/" + item.node_id}>
+          <p>
+            Риск запроса · {priorities[String(item.risk)] ?? String(item.risk)}
+          </p>
+          <Link
+            to={
+              "../requirements/" +
+              item.node_id +
+              (item.status === "APPROVED" ? "?change=" + item.id : "")
+            }
+          >
             {node.data?.node.code ?? "Требование"}
           </Link>
-          <p>
+          <details>
+            <summary>Идентификатор запроса</summary>
             <code>{item.id}</code>
-          </p>
+          </details>
           {Boolean(item.evidence) && (
             <p>Подтверждение проверок: {String(item.evidence)}</p>
           )}
         </div>
       </Panel>
       {allowed.length > 0 && (
-        <Panel title="Переход состояния">
+        <Panel
+          title={
+            item.status === "IMPACT_REVIEW"
+              ? "Решение по изменению"
+              : "Переход состояния"
+          }
+        >
+          {["UNDER_ANALYSIS", "IMPACT_REVIEW"].includes(item.status) &&
+            blocker && <p className="notice">{blocker}</p>}
+          {item.status === "APPROVED" &&
+            !node.data?.versions.some(
+              (candidate) =>
+                candidate.change_id === item.id &&
+                candidate.status === "APPROVED",
+            ) && (
+              <p className="notice">
+                Для отметки выполнения нужна утверждённая редакция, связанная с
+                этим запросом.{" "}
+                <Link
+                  to={"../requirements/" + item.node_id + "?change=" + item.id}
+                >
+                  Перейти к редакциям
+                </Link>
+              </p>
+            )}
           <form
             key={item.status}
             className="pad toolbar"
@@ -181,7 +270,10 @@ export function Change() {
         <Grid
           columns={["Анализ", "Эпоха графа", "Дата"]}
           rows={item.analyses.map((r) => [
-            <Link to={"../impact/" + r.id}>{short(r.id)}</Link>,
+            <Link to={"../impact/" + r.id}>
+              {r.id === latest?.id ? "Последний отчёт" : "Открыть отчёт"} ·{" "}
+              {short(r.id)}
+            </Link>,
             String(r.epoch),
             datetime(r.created_at),
           ])}
@@ -233,6 +325,14 @@ export function Change() {
 }
 export function ImpactList() {
   const { path, project } = useContext();
+  const [query] = useSearchParams();
+  const version = query.get("version") ?? "";
+  const node = query.get("node");
+  const record = useData<{ versions: Version[] }>(
+    path + "/nodes/" + node,
+    Boolean(node && version),
+  );
+  const selected = record.data?.versions.find((item) => item.id === version);
   const list = useData<Row[]>(path + "/analyses");
   const requirements = useData<Row[]>(path + "/requirements");
   const nav = useNavigate();
@@ -243,7 +343,7 @@ export function ImpactList() {
         title="Анализ влияния"
         description="Сохранённые графы и объясняющие пути"
       />
-      <ErrorBox error={list.error ?? run.error} />
+      <ErrorBox error={list.error ?? run.error ?? record.error} />
       {project?.role !== "REVIEWER" && (
         <Panel title="Новый анализ">
           <form
@@ -254,7 +354,24 @@ export function ImpactList() {
           >
             <label>
               Исходное требование
-              <select name="version_id" required>
+              <select
+                name="version_id"
+                required
+                key={
+                  requirements.isPending || (Boolean(node) && record.isPending)
+                    ? "loading"
+                    : "ready"
+                }
+                defaultValue={version}
+              >
+                {selected &&
+                  !requirements.data?.some(
+                    (item) => item.version_id === version,
+                  ) && (
+                    <option value={version}>
+                      v{selected.number} · {selected.title}
+                    </option>
+                  )}
                 <option value="">Выберите</option>
                 {requirements.data?.map((r) => (
                   <option key={r.id} value={r.version_id}>
@@ -300,7 +417,12 @@ export function Impact() {
   const report = result.data;
   const { graph, version, findings } = report.snapshot;
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-  const active = findings.find((f) => f.node_id === selected) ?? findings[0];
+  const visible = findings.filter(
+    (finding) => !filter || byId.get(finding.node_id)?.kind === filter,
+  );
+  const active =
+    visible.find((finding) => finding.node_id === selected) ?? visible[0];
+  const edges = new Map(graph.links.map((edge) => [edge.id, edge]));
   const decisions = new Map(report.decisions.map((d) => [d.node_id, d]));
   const direct = findings.filter((f) => f.depth === 1).length;
   const stale = findings.filter((f) => f.stale).length;
@@ -329,131 +451,185 @@ export function Impact() {
           Граф изменился после анализа. Снимок сохранён для истории.
         </p>
       )}
-      <div className="metrics">
-        {[
-          ["Прямое влияние", direct],
-          ["Косвенное влияние", findings.length - direct],
-          ["Устаревшие связи", stale],
-          ["Требуют решения", findings.length - decisions.size],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <small>{label}</small>
-            <strong>{value}</strong>
-          </div>
-        ))}
-      </div>
+      <ul className="impact-summary" aria-label="Сводка влияния">
+        <li>
+          <strong>{direct}</strong> прямых
+        </li>
+        <li>
+          <strong>{findings.length - direct}</strong> косвенных
+        </li>
+        <li>
+          <strong>{stale}</strong> с устаревшей привязкой
+        </li>
+        <li role="status">
+          <strong>{findings.length - decisions.size}</strong> ждут оценки
+        </li>
+      </ul>
       {report.snapshot.missing_traceability && (
         <p className="notice">
           У исходной версии отсутствует актуальный путь влияния.
         </p>
       )}
-      <Panel
-        title="Затронутые элементы"
-        action={
-          <label>
-            Тип
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="">Все</option>
-              {[
-                ...new Set(
-                  findings.map((f) => byId.get(f.node_id)?.kind ?? ""),
-                ),
-              ].map((k) => (
-                <option key={k}>{k}</option>
-              ))}
-            </select>
-          </label>
-        }
-      >
-        <Grid
-          columns={["Элемент", "Тип", "Длина пути", "Актуальность", "Решение"]}
-          rows={findings
-            .filter((f) => !filter || byId.get(f.node_id)?.kind === filter)
-            .map((f) => {
-              const n = byId.get(f.node_id);
-              return [
-                <button onClick={() => setSelected(f.node_id)}>
-                  {n?.code} · {n?.display_title}
-                </button>,
-                n?.kind,
-                f.depth,
-                f.stale ? "Требует перепривязки" : "Актуальная связь",
-                decisions.get(f.node_id)?.decision ?? "Ожидает",
-              ];
-            })}
-        />
-      </Panel>
-      {active && (
-        <Panel title={"Объяснение · " + byId.get(active.node_id)?.code}>
-          <ol className="steps">
-            {active.path.map((s) => (
-              <li key={s.link_id}>
-                <code>{byId.get(s.from)?.code}</code> → {s.kind} →{" "}
-                <code>{byId.get(s.to)?.code}</code>
-                {s.stale ? " · устарела" : ""}
-              </li>
-            ))}
-          </ol>
-          {!report.stale &&
-            (!report.change_id || change.data?.status === "UNDER_ANALYSIS") && (
-              <form
-                className="pad toolbar"
-                key={active.node_id}
-                onSubmit={(e) =>
-                  save.mutate({
-                    path:
-                      path + "/analyses/" + id + "/decisions/" + active.node_id,
-                    method: "PUT",
-                    body: data(e),
-                  })
-                }
+      <div className="work-columns impact-columns">
+        <Panel
+          title="Затронутые элементы"
+          action={
+            <label>
+              Тип
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
               >
-                <label>
-                  Решение
-                  <select
-                    name="decision"
-                    defaultValue={
-                      decisions.get(active.node_id)?.decision ?? "CONFIRMED"
-                    }
-                  >
-                    <option value="CONFIRMED">Подтвердить</option>
-                    <option value="DISMISSED">Отклонить</option>
-                  </select>
-                </label>
-                <label>
-                  Комментарий
-                  <input
-                    name="comment"
-                    required
-                    defaultValue={decisions.get(active.node_id)?.comment}
-                  />
-                </label>
-                <button className="primary" disabled={save.isPending}>
-                  Сохранить оценку
-                </button>
-              </form>
-            )}
+                <option value="">Все</option>
+                {[
+                  ...new Set(
+                    findings.map((f) => byId.get(f.node_id)?.kind ?? ""),
+                  ),
+                ].map((k) => (
+                  <option key={k}>{k}</option>
+                ))}
+              </select>
+            </label>
+          }
+        >
+          {visible.length ? (
+            <ul className="findings">
+              {visible.map((finding) => {
+                const node = byId.get(finding.node_id);
+                const decision = decisions.get(finding.node_id);
+                return (
+                  <li key={finding.node_id}>
+                    <button
+                      type="button"
+                      aria-pressed={active?.node_id === finding.node_id}
+                      onClick={() => setSelected(finding.node_id)}
+                    >
+                      <span>
+                        <code>{node?.code}</code>{" "}
+                        <strong>{node?.display_title ?? node?.title}</strong>
+                      </span>
+                      <span className="finding-meta">
+                        {node?.kind} ·{" "}
+                        {finding.depth === 1 ? "Прямое" : "Косвенное"} ·{" "}
+                        {finding.depth} шага(-ов)
+                        {finding.stale ? " · Устарела привязка" : ""}
+                      </span>
+                      <Badge value={decision?.decision ?? "Ожидает оценки"} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <Wait empty="Затронутых элементов для выбранного типа нет." />
+          )}
         </Panel>
-      )}
+        {active && (
+          <Panel title={"Объяснение · " + byId.get(active.node_id)?.code}>
+            <p className="pad muted">
+              Анализ отсчитывает путь от изменённой версии. Исходное направление
+              связи приведено для каждого шага.
+            </p>
+            <ol className="steps impact-path">
+              {active.path.map((step) => {
+                const edge = edges.get(step.link_id);
+                const code = (id: string) => byId.get(id)?.code ?? id;
+                return (
+                  <li key={step.link_id}>
+                    <strong>
+                      {code(step.from)} → {code(step.to)}
+                    </strong>
+                    {edge && (
+                      <span>
+                        Связь:{" "}
+                        <code>
+                          {code(edge.source_id)} → {edge.kind} →{" "}
+                          {code(edge.target_id)}
+                        </code>
+                      </span>
+                    )}
+                    <span>
+                      {edge && edge.target_id === step.from
+                        ? "Обход против стрелки"
+                        : "Обход по стрелке"}
+                      {step.stale ? " · Устаревшая привязка" : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="pad finding-next">
+              <Link to={"../requirements/" + active.node_id}>
+                Открыть затронутый объект
+              </Link>
+              {decisions.get(active.node_id) && (
+                <p className="bodytext">
+                  Комментарий: {decisions.get(active.node_id)?.comment}
+                </p>
+              )}
+              {(report.stale ||
+                (report.change_id &&
+                  change.data?.status !== "UNDER_ANALYSIS")) && (
+                <p>Оценки доступны для чтения.</p>
+              )}
+            </div>
+            {!report.stale &&
+              (!report.change_id ||
+                change.data?.status === "UNDER_ANALYSIS") && (
+                <form
+                  className="pad toolbar"
+                  key={active.node_id}
+                  onSubmit={(e) =>
+                    save.mutate({
+                      path:
+                        path +
+                        "/analyses/" +
+                        id +
+                        "/decisions/" +
+                        active.node_id,
+                      method: "PUT",
+                      body: data(e),
+                    })
+                  }
+                >
+                  <label>
+                    Решение
+                    <select
+                      name="decision"
+                      defaultValue={
+                        decisions.get(active.node_id)?.decision ?? "CONFIRMED"
+                      }
+                    >
+                      <option value="CONFIRMED">Подтвердить</option>
+                      <option value="DISMISSED">Отклонить</option>
+                    </select>
+                  </label>
+                  <label>
+                    Комментарий
+                    <input
+                      name="comment"
+                      required
+                      defaultValue={decisions.get(active.node_id)?.comment}
+                    />
+                  </label>
+                  <button className="primary" disabled={save.isPending}>
+                    Сохранить оценку
+                  </button>
+                </form>
+              )}
+          </Panel>
+        )}
+      </div>
       <Panel title="Граф распространения">
-        <Diagram graph={graph} highlight={active?.path.map((x) => x.link_id)} />
+        <Diagram
+          graph={graph}
+          origin={version.node_id}
+          highlight={active?.path.map((step) => step.link_id)}
+        />
       </Panel>
     </>
   );
 }
-type Snapshot = {
-  requirements: { id: string; code: string; version: Version }[];
-  artifacts: Row[];
-  links: Row[];
-};
-type Diff = Record<
-  string,
-  {
-    added: unknown[];
-    removed: unknown[];
-    changed: { before: unknown; after: unknown }[];
-  }
->;
 export function Baselines() {
   const { path, project } = useContext();
   const list = useData<Row[]>(path + "/baselines");
@@ -465,6 +641,33 @@ export function Baselines() {
     path + "/baselines/" + selected,
     Boolean(selected),
   );
+  const savedLeft = useData<{ snapshot: Snapshot }>(
+    path + "/baselines/" + left,
+    Boolean(left),
+  );
+  const savedRight = useData<{ snapshot: Snapshot }>(
+    path + "/baselines/" + right,
+    Boolean(right),
+  );
+  const liveGraph = useData<Report["snapshot"]["graph"]>(
+    path + "/graph",
+    Boolean(left && !right),
+  );
+  const labels = new Map<string, string>();
+  for (const snapshot of [
+    savedLeft.data?.snapshot,
+    savedRight.data?.snapshot,
+  ]) {
+    for (const node of [
+      ...(snapshot?.requirements ?? []),
+      ...(snapshot?.artifacts ?? []),
+    ])
+      labels.set(node.id, node.code);
+    for (const node of snapshot?.requirements ?? [])
+      labels.set(node.version.id, node.code + " v" + node.version.number);
+  }
+  for (const node of liveGraph.data?.nodes ?? [])
+    labels.set(node.id, node.code);
   const comparePath = "left=" + left + (right ? "&right=" + right : "");
   const compare = useData<Diff>(
     path + "/baseline-comparison?" + comparePath,
@@ -548,7 +751,7 @@ export function Baselines() {
       >
         <div className="toolbar pad">
           <label>
-            Исходная baseline
+            Снимок A · Было
             <select value={left} onChange={(e) => setLeft(e.target.value)}>
               <option value="">Выберите</option>
               {list.data?.map((r) => (
@@ -559,7 +762,7 @@ export function Baselines() {
             </select>
           </label>
           <label>
-            Сравнить с
+            Снимок B · Стало
             <select value={right} onChange={(e) => setRight(e.target.value)}>
               <option value="">Текущее состояние</option>
               {list.data?.map((r) => (
@@ -570,16 +773,14 @@ export function Baselines() {
             </select>
           </label>
         </div>
-        {compare.data &&
-          Object.entries(compare.data).map(([kind, v]) => (
-            <details key={kind} open={kind === "requirements"}>
-              <summary>
-                {kind} · +{v.added.length} · −{v.removed.length} · Δ
-                {v.changed.length}
-              </summary>
-              <Json value={v} />
-            </details>
-          ))}
+        {!left && (
+          <Wait empty="Выберите исходный снимок, чтобы увидеть изменения." />
+        )}
+        {left && compare.isPending && <Wait pending />}
+        <ErrorBox
+          error={savedLeft.error ?? savedRight.error ?? liveGraph.error}
+        />
+        {compare.data && <BaselineDiff diff={compare.data} labels={labels} />}
       </Panel>
     </>
   );

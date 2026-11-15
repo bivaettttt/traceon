@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test.use({ viewport: { width: 1440, height: 1000 } });
+
 const password = process.env.TRACEON_DEMO_PASSWORD ?? "Traceon-demo-local";
 async function capture(page: Page, name: string) {
   if (!process.env.TRACEON_SCREENSHOTS) return;
@@ -14,14 +16,19 @@ async function login(page: Page, name: string) {
   await page.getByLabel("Логин", { exact: true }).fill(name);
   await page.getByLabel("Пароль", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page.getByRole("button", { name: "Выйти" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Выйти" })).toBeVisible({
+    timeout: 20_000,
+  });
 }
 async function lab(page: Page, name: string) {
   await page.goto("/");
   await login(page, name);
   await page.getByRole("link", { name: "ServiceHub", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "ServiceHub", exact: true }),
+    page.getByRole("heading", {
+      name: "Рабочий стол трассируемости",
+      exact: true,
+    }),
   ).toBeVisible();
 }
 async function swap(page: Page, name: string) {
@@ -38,6 +45,7 @@ async function transition(page: Page, status: string) {
 test("create a project and requirement, store an artifact and link", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await page.goto("/");
   await login(page, "analyst");
   const code = "E2E-" + Date.now();
@@ -47,7 +55,12 @@ test("create a project and requirement, store an artifact and link", async ({
     .fill("Проверка нового проекта");
   await page.getByRole("button", { name: "Создать проект" }).click();
   await expect(
-    page.getByRole("heading", { name: "Проверка нового проекта" }),
+    page.getByRole("heading", { name: "Рабочий стол трассируемости" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("main")
+      .getByText("Проверка нового проекта", { exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Требования", exact: true }).click();
   await page.getByRole("button", { name: "Новое требование" }).click();
@@ -80,23 +93,44 @@ test("create a project and requirement, store an artifact and link", async ({
 test("ServiceHub change proceeds from impact to approved revision and baseline diff", async ({
   page,
 }) => {
+  test.setTimeout(160_000);
   await lab(page, "analyst");
   await expect(
-    page.getByRole("cell", { name: "BASELINE_CREATE" }),
+    page.getByRole("heading", { name: "Выбранное требование" }),
   ).toBeVisible();
   await capture(page, "dashboard");
   await page.getByRole("link", { name: "Требования", exact: true }).click();
   await expect(page.getByText("FR-014", { exact: true })).toBeVisible();
   await capture(page, "registry");
-  await page.getByRole("link", { name: "Связи и граф", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Разделы проекта" })
+    .getByRole("link", { name: "Связи и граф", exact: true })
+    .click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(10);
   await capture(page, "graph");
   await page.getByRole("link", { name: "Лаборатория", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Создать учебный запрос" }),
+    page.getByRole("link", { name: "Открыть FR-014" }),
   ).toBeVisible();
   await capture(page, "lab");
-  await page.getByRole("button", { name: "Создать учебный запрос" }).click();
+  await page.getByRole("link", { name: "Открыть FR-014" }).click();
+  await page.getByRole("link", { name: "Создать запрос на изменение" }).click();
+  await expect(
+    page.getByLabel("Требование").locator("option:checked"),
+  ).toHaveText(/FR-014/);
+  await page
+    .getByLabel("Название", { exact: true })
+    .fill("Обязательное подтверждение руководителя");
+  await page
+    .getByLabel("Причина", { exact: true })
+    .fill("Снизить риск ошибочного согласования чувствительных заявок.");
+  await page
+    .getByLabel("Предложение")
+    .fill(
+      "Проверять полномочия и подтверждение руководителя перед выполнением.",
+    );
+  await page.getByLabel("Риск").selectOption("HIGH");
+  await page.getByRole("button", { name: "Создать запрос" }).click();
   await expect(
     page.getByRole("heading", {
       name: "Обязательное подтверждение руководителя",
@@ -113,9 +147,11 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   ).toBeVisible();
   await expect(page.locator(".react-flow__edge").first()).toBeVisible();
   await capture(page, "impact");
-  const findings = page.getByRole("table").first().getByRole("button");
+  const findings = page
+    .getByRole("region", { name: "Затронутые элементы" })
+    .getByRole("button");
+  await expect(findings).toHaveCount(8);
   const count = await findings.count();
-  expect(count).toBeGreaterThan(5);
   for (let i = 0; i < count; i++) {
     await findings.nth(i).click();
     await page.getByLabel("Комментарий", { exact: true }).fill("Путь проверен");
@@ -143,7 +179,7 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   await page
     .getByLabel("Причина новой редакции")
     .fill("Шаг согласования руководителем");
-  await page.getByLabel("ID согласованного запроса").fill(changeId);
+  await expect(page.getByLabel("Согласованный запрос")).toHaveValue(changeId);
   await page.getByRole("button", { name: "Создать редакцию" }).click();
   await page.getByRole("button", { name: "Редактировать черновик" }).click();
   await page
@@ -166,11 +202,15 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   await expect(
     page.getByRole("heading", { name: "Очередь согласований" }),
   ).toBeVisible();
-  await expect(page.getByText("FR-014", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "FR-014", exact: true }),
+  ).toBeVisible();
   await capture(page, "approval");
   await page
     .getByRole("link", { name: "Подтверждение сервисной заявки", exact: true })
     .click();
+  await page.getByLabel("Решение", { exact: true }).selectOption("APPROVED");
+  await capture(page, "review");
   await page
     .getByLabel("Комментарий", { exact: true })
     .fill("Утверждаю конкретную редакцию");
@@ -205,15 +245,24 @@ test("ServiceHub change proceeds from impact to approved revision and baseline d
   await page
     .getByRole("link", { name: "Базовые конфигурации", exact: true })
     .click();
-  const name = "E2E baseline " + Date.now();
+  const name = "ServiceHub 1.1 · подтверждение руководителя";
   await page.getByLabel("Название baseline").fill(name);
   await page.getByRole("button", { name: "Зафиксировать baseline" }).click();
   await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   await page
-    .getByLabel("Исходная baseline")
+    .getByLabel("Снимок A · Было")
     .selectOption({ label: "ServiceHub 1.0" });
-  await page.getByLabel("Сравнить с").selectOption({ label: name });
-  await expect(page.getByText(/requirements · \+0 · −0 · Δ1/)).toBeVisible();
+  await page.getByLabel("Снимок B · Стало").selectOption({ label: name });
+  await expect(
+    page.getByText("Добавлено: 0 · Удалено: 0 · Изменено: 1").first(),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator(".diff-fields")
+      .getByText("Чувствительные заявки подтверждает руководитель.", {
+        exact: true,
+      }),
+  ).toBeVisible();
   await capture(page, "baseline");
 });
 
@@ -226,12 +275,109 @@ test("mobile workspace renders user text literally", async ({ page }) => {
   await page.getByLabel("Название", { exact: true }).fill(markup);
   await page.getByRole("button", { name: "Создать проект" }).click();
   await expect(
-    page.getByRole("heading", { name: markup, exact: true }),
+    page.getByRole("main").getByText(markup, { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: markup, exact: true }).locator("b"),
-  ).toHaveCount(0);
+  await expect(page.getByRole("main").locator("b")).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBe(390);
+});
+
+test("registry retains URL state and exports the complete scoped registry", async ({
+  page,
+}) => {
+  await lab(page, "analyst");
+  await page.getByRole("link", { name: "Требования", exact: true }).click();
+  const csv = async () => {
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "CSV всего реестра" }).click();
+    const stream = await (await download).createReadStream();
+    const parts = [];
+    for await (const part of stream!) parts.push(part);
+    return Buffer.concat(parts).toString("utf8");
+  };
+  const all = await csv();
+  await page.getByLabel("Поиск", { exact: true }).fill("FR-014");
+  await page.getByText("Уточнить выборку", { exact: true }).click();
+  await page.getByLabel("Сортировка").selectOption("title");
+  await page.getByRole("button", { name: "Найти", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "На странице: 1" }),
+  ).toBeVisible();
+  const filteredUrl = page.url();
+  expect(filteredUrl).toContain("q=FR-014");
+  expect(filteredUrl).toContain("sort=title");
+  await page
+    .getByRole("link", { name: "Подтверждение сервисной заявки", exact: true })
+    .click();
+  await page.getByRole("link", { name: "← Реестр требований" }).click();
+  await expect(page).toHaveURL(filteredUrl);
+  await expect(page.getByLabel("Поиск", { exact: true })).toHaveValue("FR-014");
+  await expect(page.getByLabel("Сортировка")).toHaveValue("title");
+  expect(all).toContain("FR-021");
+  expect(all).toContain("FR-014");
+  expect(await csv()).toBe(all);
+});
+
+test("graph activation, mobile workspace and reduced motion", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("response", (response) => {
+    if (response.url().includes("/api/") && response.status() >= 400)
+      errors.push(response.status() + " " + response.url());
+  });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await lab(page, "analyst");
+  const side = page.getByRole("navigation", { name: "Разделы проекта" });
+  await side.getByRole("link", { name: "Связи и граф" }).click();
+  const req = page.locator(".react-flow__node").filter({ hasText: "FR-014" });
+  await req.focus();
+  await req.press("Enter");
+  await expect(req).toHaveClass(/selected/);
+  const other = page.locator(".react-flow__node").filter({ hasText: "FR-021" });
+  await other.focus();
+  await other.press("Space");
+  await expect(other).toHaveClass(/selected/);
+  await req.click();
+  await expect(req).toHaveClass(/selected/);
+  await page.getByRole("link", { name: "Анализ влияния узла" }).click();
+  await expect(
+    page.getByLabel("Исходное требование").locator("option:checked"),
+  ).toHaveText(/FR-014/);
+  await expect(
+    page.getByRole("button", { name: "Запустить анализ" }),
+  ).toBeEnabled();
+  await side.getByRole("link", { name: "Требования", exact: true }).click();
+  for (const width of [768, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.getByRole("button", { name: "Разделы" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await expect(side).toBeHidden();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBe(width);
+    if (width <= 390) {
+      const row = page.getByRole("row").filter({ hasText: "FR-014" });
+      await expect(row.getByText(/^v[0-9]+$/)).toBeVisible();
+      await expect(row.getByText("Приоритет", { exact: true })).toBeVisible();
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await capture(page, "mobile-workspace");
+  await page.getByRole("button", { name: "Разделы" }).press("Enter");
+  await expect(side).toBeVisible();
+  await side.getByRole("link", { name: "Связи и граф" }).press("Enter");
+  await expect(side).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Список связей" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Выбранный узел")).toBeVisible();
+  expect(errors).toEqual([]);
 });

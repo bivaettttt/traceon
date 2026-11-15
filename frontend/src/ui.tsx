@@ -1,14 +1,5 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import {
-  Background,
-  Controls,
-  ReactFlow,
-  MarkerType,
-  type Edge as FlowEdge,
-  type Node,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import { download, type Content, type Graph } from "./api";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { download, type Content } from "./api";
 export const short = (id: unknown) => String(id ?? "—").slice(0, 8);
 export const datetime = (date: unknown) =>
   date ? new Date(String(date)).toLocaleString("ru-RU") : "—";
@@ -24,6 +15,17 @@ export const states: Record<string, string> = {
   IMPLEMENTED: "Выполнен",
   VERIFIED: "Проверен",
   CLOSED: "Закрыт",
+  ANALYST: "Аналитик",
+  REVIEWER: "Ревьюер",
+  PROJECT_MANAGER: "Менеджер проекта",
+  CONFIRMED: "Подтверждено",
+  DISMISSED: "Отклонено",
+};
+export const priorities: Record<string, string> = {
+  LOW: "Низкий",
+  MEDIUM: "Средний",
+  HIGH: "Высокий",
+  CRITICAL: "Критический",
 };
 export function Badge({ value }: { value: string }) {
   return (
@@ -69,10 +71,11 @@ export function Panel({
   children: ReactNode;
   action?: ReactNode;
 }) {
+  const id = useId();
   return (
-    <section className="panel">
+    <section className="panel" aria-labelledby={id}>
       <div className="panelhead">
-        <h2>{title}</h2>
+        <h2 id={id}>{title}</h2>
         {action}
       </div>
       {children}
@@ -93,22 +96,30 @@ export function Wait({
   pending?: boolean;
   empty?: string;
 }) {
-  return <p className="pad muted">{pending ? "Загрузка…" : empty}</p>;
+  return (
+    <p className="pad muted" role="status">
+      {pending ? "Загрузка…" : empty}
+    </p>
+  );
 }
 export function Grid({
   columns,
   rows,
+  responsive = false,
 }: {
   columns: string[];
   rows: ReactNode[][];
+  responsive?: boolean;
 }) {
   return rows.length ? (
     <div className="tablewrap">
-      <table>
+      <table className={responsive ? "responsive-table" : undefined}>
         <thead>
           <tr>
             {columns.map((c, i) => (
-              <th key={i}>{c}</th>
+              <th scope="col" key={i}>
+                {c}
+              </th>
             ))}
           </tr>
         </thead>
@@ -116,7 +127,18 @@ export function Grid({
           {rows.map((row, i) => (
             <tr key={i}>
               {row.map((cell, j) => (
-                <td key={j}>{cell}</td>
+                <td key={j}>
+                  {responsive && (
+                    <span className="cell-label" aria-hidden="true">
+                      {columns[j]}
+                    </span>
+                  )}
+                  {responsive ? (
+                    <span className="cell-value">{cell}</span>
+                  ) : (
+                    cell
+                  )}
+                </td>
               ))}
             </tr>
           ))}
@@ -137,13 +159,14 @@ export function data(e: FormEvent<HTMLFormElement>) {
 export function Json({ value }: { value: unknown }) {
   return <pre>{JSON.stringify(value, null, 2)}</pre>;
 }
-export function Export({ path }: { path: string }) {
+export function Export({ path, scope }: { path: string; scope?: string }) {
   const [error, setError] = useState<unknown>(null);
   return (
     <div className="actions">
       {["json", "csv"].map((f) => (
         <button key={f} onClick={() => void download(path, f).catch(setError)}>
           {f.toUpperCase()}
+          {scope && " " + scope}
         </button>
       ))}
       <ErrorBox error={error} />
@@ -189,101 +212,6 @@ export function ContentFields({ value }: { value?: Content }) {
         Причина редакции
         <input name="reason" defaultValue={value?.reason} />
       </label>
-    </>
-  );
-}
-export function Diagram({
-  graph,
-  highlight = [],
-}: {
-  graph: Graph;
-  highlight?: string[];
-}) {
-  const [selection, setSelection] = useState("");
-  const [filter, setFilter] = useState("");
-  const nodes = useMemo<Node[]>(
-    () =>
-      graph.nodes
-        .filter((n) => !filter || n.kind === filter)
-        .map((n, i) => ({
-          id: n.id,
-          position: { x: (i % 4) * 245, y: Math.floor(i / 4) * 125 },
-          data: {
-            label: (
-              <>
-                <strong>{n.code}</strong>
-                <div>{n.display_title ?? n.title}</div>
-              </>
-            ),
-          },
-          style: {
-            borderColor: n.latest_id ? "#6550b2" : "#7b8b8c",
-            width: 195,
-            background: n.latest_id ? "#f4efff" : "white",
-          },
-        })),
-    [graph.nodes, filter],
-  );
-  const edges = useMemo<FlowEdge[]>(
-    () =>
-      graph.links
-        .filter(
-          (e) =>
-            nodes.some((n) => n.id === e.source_id) &&
-            nodes.some((n) => n.id === e.target_id),
-        )
-        .map((e) => ({
-          id: e.id,
-          source: e.source_id,
-          target: e.target_id,
-          label: e.kind,
-          markerEnd: { type: MarkerType.ArrowClosed },
-          style: {
-            stroke: highlight.includes(e.id)
-              ? "#6741c5"
-              : e.stale
-                ? "#bc7622"
-                : "#758198",
-            strokeWidth: highlight.includes(e.id) ? 3 : 1.5,
-            strokeDasharray: e.stale ? "5 4" : undefined,
-          },
-          labelStyle: { fontSize: 10 },
-        })),
-    [graph.links, nodes, highlight],
-  );
-  const current = graph.nodes.find((n) => n.id === selection);
-  return (
-    <>
-      <div className="pad toolbar">
-        <label>
-          Тип узла
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="">Все</option>
-            {[...new Set(graph.nodes.map((n) => n.kind))].map((k) => (
-              <option key={k}>{k}</option>
-            ))}
-          </select>
-        </label>
-        {current && (
-          <p>
-            <strong>{current.code}</strong> ·{" "}
-            {current.display_title ?? current.title} · {current.kind}
-          </p>
-        )}
-      </div>
-      <div className="flow">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          fitView
-          minZoom={0.2}
-          nodesDraggable={false}
-          onNodeClick={(_, n) => setSelection(n.id)}
-        >
-          <Background />
-          <Controls showInteractive={false} />
-        </ReactFlow>
-      </div>
     </>
   );
 }

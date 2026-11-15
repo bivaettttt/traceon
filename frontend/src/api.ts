@@ -89,6 +89,12 @@ const errors: Record<string, string> = {
   STALE_ANALYSIS: "Граф изменился. Запустите новый анализ.",
   INCOMPLETE_REQUIREMENT: "Заполните описание, источник и критерии.",
   STRUCTURAL_CYCLE: "Эта связь замкнёт структурный цикл.",
+  BASELINE_EXISTS:
+    "Снимок с таким названием уже существует. Выберите другое название.",
+  APPROVED_REVISION_REQUIRED:
+    "Свяжите запрос с утверждённой редакцией требования.",
+  ANALYSIS_REVIEW_CLOSED:
+    "В текущем состоянии запроса оценки доступны для чтения.",
   INVALID_INPUT: "Проверьте значения и формат полей.",
 };
 export async function call<T>(

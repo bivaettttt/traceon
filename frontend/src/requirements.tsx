@@ -1,11 +1,16 @@
+import { Diagram } from "./diagram";
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useContext } from "./context";
 import { useData, useWrite, type Version, type Graph, type Row } from "./api";
 import {
   Badge,
   ContentFields,
-  Diagram,
   ErrorBox,
   Export,
   Grid,
@@ -13,7 +18,9 @@ import {
   Panel,
   Wait,
   data,
+  datetime,
   states,
+  priorities,
 } from "./ui";
 
 const types = [
@@ -57,18 +64,31 @@ const fields: Record<string, string> = {
 export function Registry() {
   const { path, project } = useContext();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [group, setGroup] = useState<"kind" | "status" | "priority" | "">("");
-  const list = useData<Row[]>(
-    path + "/requirements?offset=" + offset + "&" + filters,
-  );
+  const [params, setParams] = useSearchParams();
+  const offset = Math.max(0, Number(params.get("offset")) || 0);
+  const group = params.get("group");
+  const clauses = new URLSearchParams();
+  for (const key of ["q", "kind", "status", "priority", "sort"]) {
+    const value = params.get(key);
+    if (value) clauses.set(key, value);
+  }
+  clauses.set("offset", String(offset));
+  const list = useData<Row[]>(path + "/requirements?" + clauses);
+  const search = params.size ? "?" + params.toString() : "";
+  function page(next: number) {
+    const copy = new URLSearchParams(params);
+    if (next) copy.set("offset", String(next));
+    else copy.delete("offset");
+    setParams(copy);
+  }
   const [open, setOpen] = useState(false);
-  const save = useWrite<{ node: Row }>((r) => navigate(r.node.id));
+  const save = useWrite<{ node: Row }>((r) => navigate(r.node.id + search));
   const groups = new Map<string, Row[]>();
   for (const item of list.data ?? []) {
-    const key = group ? item[group] : "Реестр";
-    groups.set(key, [...(groups.get(key) ?? []), item]);
+    const key = group ? String(item[group] ?? "Без значения") : "Требования";
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(item);
+    else groups.set(key, [item]);
   }
   return (
     <>
@@ -110,85 +130,112 @@ export function Registry() {
           </form>
         </Panel>
       )}
-      <Panel
-        title="Фильтры"
-        action={<Export path={path + "/export/registry"} />}
-      >
+      <Panel title="Фильтры">
         <form
-          className="pad toolbar"
+          className="pad toolbar registry-filters"
+          key={clauses.toString() + group}
           onSubmit={(e) => {
-            const params = data(e);
-            setOffset(0);
-            setFilters(
+            const values = data(e);
+            values.q = values.q.trim();
+            if (values.sort === "code") delete values.sort;
+            setParams(
               new URLSearchParams(
-                Object.entries(params).filter(([, v]) => v),
-              ).toString(),
+                Object.entries(values).filter(([, value]) => value),
+              ),
             );
           }}
         >
           <label>
             Поиск
-            <input name="q" placeholder="Код или заголовок" />
+            <input
+              type="search"
+              name="q"
+              defaultValue={params.get("q") ?? ""}
+              placeholder="Код или заголовок"
+            />
           </label>
-          <label>
-            Тип
-            <select name="kind">
-              <option value="">Все</option>
-              {types.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Статус
-            <select name="status">
-              <option value="">Все</option>
-              {["DRAFT", "IN_REVIEW", "APPROVED", "CHANGES_REQUESTED"].map(
-                (s) => (
-                  <option key={s} value={s}>
-                    {states[s]}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-          <label>
-            Приоритет
-            <select name="priority">
-              <option value="">Все</option>
-              {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Сортировка
-            <select name="sort">
-              <option value="code">Код</option>
-              <option value="title">Заголовок</option>
-              <option value="newest">Новые редакции</option>
-            </select>
-          </label>
-          <label>
-            Группировка
-            <select
-              value={group}
-              onChange={(e) => setGroup(e.target.value as typeof group)}
-            >
-              <option value="">Без группировки</option>
-              <option value="kind">Тип</option>
-              <option value="status">Статус</option>
-              <option value="priority">Приоритет</option>
-            </select>
-          </label>
-          <button>Найти</button>
+          <details
+            className="advanced-filters"
+            open={
+              ["kind", "status", "priority", "sort", "group"].some(
+                (key) => params.has(key) && params.get(key) !== "code",
+              ) || undefined
+            }
+          >
+            <summary>Уточнить выборку</summary>
+            <div className="filter-fields">
+              <label>
+                Тип
+                <select name="kind" defaultValue={params.get("kind") ?? ""}>
+                  <option value="">Все</option>
+                  {types.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Статус
+                <select name="status" defaultValue={params.get("status") ?? ""}>
+                  <option value="">Все</option>
+                  {["DRAFT", "IN_REVIEW", "APPROVED", "CHANGES_REQUESTED"].map(
+                    (s) => (
+                      <option key={s} value={s}>
+                        {states[s]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label>
+                Приоритет
+                <select
+                  name="priority"
+                  defaultValue={params.get("priority") ?? ""}
+                >
+                  <option value="">Все</option>
+                  {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((p) => (
+                    <option key={p}>{p}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Сортировка
+                <select name="sort" defaultValue={params.get("sort") ?? ""}>
+                  <option value="code">Код</option>
+                  <option value="title">Заголовок</option>
+                  <option value="newest">Новые редакции</option>
+                </select>
+              </label>
+              <label>
+                Группировка
+                <select name="group" defaultValue={group ?? ""}>
+                  <option value="">Без группировки</option>
+                  <option value="kind">Тип</option>
+                  <option value="status">Статус</option>
+                  <option value="priority">Приоритет</option>
+                </select>
+              </label>
+            </div>
+          </details>
+          <button className="primary">Найти</button>
+          <Link to="." className="secondary-link">
+            Сбросить
+          </Link>
         </form>
       </Panel>
       {list.isPending && <Wait pending />}
-      {list.data?.length === 0 && <Wait />}
+      {list.data && (
+        <p className="result-count" role="status">
+          На странице: <strong>{list.data.length}</strong>
+        </p>
+      )}
+      {list.data?.length === 0 && (
+        <Wait empty="Требования по этим фильтрам не найдены." />
+      )}
       {[...groups].map(([label, items]) => (
         <Panel key={label} title={states[label] ?? label}>
           <Grid
+            responsive
             columns={[
               "Код",
               "Требование",
@@ -199,25 +246,28 @@ export function Registry() {
             ]}
             rows={items.map((r) => [
               <code>{r.code}</code>,
-              <Link to={r.id}>{r.title}</Link>,
+              <Link to={r.id + search}>{r.title}</Link>,
               r.kind,
               "v" + r.number,
               <Badge value={r.status} />,
-              r.priority,
+              priorities[r.priority] ?? r.priority,
             ])}
           />
         </Panel>
       ))}
-      <div className="actions">
-        <button disabled={!offset} onClick={() => setOffset(offset - 100)}>
-          Назад
-        </button>
-        <button
-          disabled={(list.data?.length ?? 0) < 100}
-          onClick={() => setOffset(offset + 100)}
-        >
-          Далее
-        </button>
+      <div className="registry-footer">
+        <div className="actions">
+          <button disabled={!offset} onClick={() => page(offset - 100)}>
+            Назад
+          </button>
+          <button
+            disabled={(list.data?.length ?? 0) < 100}
+            onClick={() => page(offset + 100)}
+          >
+            Далее
+          </button>
+        </div>
+        <Export path={path + "/export/registry"} scope="всего реестра" />
       </div>
     </>
   );
@@ -225,9 +275,11 @@ export function Registry() {
 type Details = { node: Row; versions: Version[]; reviews: Row[]; links: Row[] };
 export function Requirement() {
   const { id } = useParams();
+  const [query] = useSearchParams();
   const { path, user, project } = useContext();
   const item = useData<Details>(path + "/nodes/" + id);
   const members = useData<Row[]>(path + "/members");
+  const changes = useData<Row[]>(path + "/changes");
   const [selected, setSelected] = useState("");
   const [edit, setEdit] = useState(false);
   const [left, setLeft] = useState("");
@@ -245,18 +297,54 @@ export function Requirement() {
   if (item.isPending) return <Wait pending />;
   if (item.error) return <ErrorBox error={item.error} />;
   const { node, versions, reviews, links } = item.data;
-  const current = versions.find((v) => v.id === selected) ?? versions[0];
+  const registryQuery = new URLSearchParams(query);
+  registryQuery.delete("version");
+  registryQuery.delete("change");
+  const current =
+    versions.find((v) => v.id === (selected || query.get("version"))) ??
+    versions[0];
+  const related = changes.data?.filter((change) => change.node_id === id) ?? [];
+  const approved = related.filter((change) => change.status === "APPROVED");
   const base = path + "/versions/" + current?.id;
   return (
     <>
-      <Link to="../requirements">← Реестр требований</Link>
+      <Link
+        className="back-link"
+        to={"../requirements" + (registryQuery.size ? "?" + registryQuery : "")}
+      >
+        ← Реестр требований
+      </Link>
       <Head
         title={current?.title ?? node.title}
         description={node.code + " · " + node.kind}
       >
-        {current && <Badge value={current.status} />}
+        {current && (
+          <div className="record-meta">
+            <code>
+              v{current.number} / r{current.revision}
+            </code>
+            <Badge value={current.status} />
+            <span className="badge">
+              {priorities[current.priority] ?? current.priority}
+            </span>
+          </div>
+        )}
       </Head>
-      <ErrorBox error={save.error ?? members.error} />
+      <nav className="context-bar" aria-label="Действия с требованием">
+        <Link to={"../graph?node=" + node.id}>Зависимости</Link>
+        {current && (
+          <Link to={"../impact?version=" + current.id + "&node=" + node.id}>
+            Анализ влияния
+          </Link>
+        )}
+        {current && project?.role !== "REVIEWER" && (
+          <Link to={"../changes?requirement=" + node.id}>
+            Создать запрос на изменение
+          </Link>
+        )}
+        {current && <Link to="../baselines">Сравнить снимки</Link>}
+      </nav>
+      <ErrorBox error={save.error ?? members.error ?? changes.error} />
       <div className="split">
         <Panel
           title="Содержание"
@@ -311,100 +399,157 @@ export function Requirement() {
             </div>
           )}
         </Panel>
-        <Panel title="Редакции">
-          <Grid
-            columns={["Версия", "Состояние"]}
-            rows={versions.map((v) => [
-              <button
-                onClick={() => {
-                  setSelected(v.id);
-                  setEdit(false);
-                }}
-              >
-                v{v.number}
-              </button>,
-              <Badge value={v.status} />,
-            ])}
-          />
-          {current?.status === "DRAFT" && current.author === user.id && (
-            <form
-              className="pad form"
-              onSubmit={(e) =>
-                save.mutate({
-                  path: base + "/submit",
-                  body: { ...data(e), revision: current.revision },
-                })
+        <div className="requirement-context">
+          {current && (
+            <Panel
+              title={
+                current.status === "IN_REVIEW"
+                  ? "Согласование редакции"
+                  : "Редакции"
               }
             >
-              <label>
-                Ревьюер
-                <select name="reviewer" required>
-                  <option value="">Выберите участника</option>
-                  {members.data
-                    ?.filter((m) => m.role === "REVIEWER" && m.id !== user.id)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <button disabled={save.isPending}>
-                Отправить на согласование
-              </button>
-            </form>
+              {current.status === "IN_REVIEW" && (
+                <p className="pad muted">
+                  На согласовании ·{" "}
+                  {members.data?.find(
+                    (member) => member.id === current.reviewer,
+                  )?.name ?? "назначенный ревьюер"}{" "}
+                  · версия v{current.number}
+                </p>
+              )}
+              <Grid
+                columns={["Версия", "Состояние"]}
+                rows={versions.map((v) => [
+                  <button
+                    aria-pressed={v.id === current?.id}
+                    onClick={() => {
+                      setSelected(v.id);
+                      setEdit(false);
+                    }}
+                  >
+                    v{v.number}
+                  </button>,
+                  <Badge value={v.status} />,
+                ])}
+              />
+              {current?.status === "DRAFT" && current.author === user.id && (
+                <form
+                  className="pad form"
+                  onSubmit={(e) =>
+                    save.mutate({
+                      path: base + "/submit",
+                      body: { ...data(e), revision: current.revision },
+                    })
+                  }
+                >
+                  <label>
+                    Ревьюер
+                    <select name="reviewer" required>
+                      <option value="">Выберите участника</option>
+                      {members.data
+                        ?.filter(
+                          (m) => m.role === "REVIEWER" && m.id !== user.id,
+                        )
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <button disabled={save.isPending}>
+                    Отправить на согласование
+                  </button>
+                </form>
+              )}
+              {current?.status === "IN_REVIEW" &&
+                current.reviewer === user.id && (
+                  <form
+                    className="pad form"
+                    onSubmit={(e) =>
+                      save.mutate({ path: base + "/review", body: data(e) })
+                    }
+                  >
+                    <label>
+                      Решение
+                      <select name="decision" required defaultValue="">
+                        <option value="">Выберите решение</option>
+                        <option value="APPROVED">Утвердить</option>
+                        <option value="CHANGES_REQUESTED">Вернуть</option>
+                      </select>
+                    </label>
+                    <label>
+                      Комментарий
+                      <input name="comment" required />
+                    </label>
+                    <button className="primary" disabled={save.isPending}>
+                      Сохранить решение
+                    </button>
+                  </form>
+                )}
+              {versions[0] &&
+                ["APPROVED", "CHANGES_REQUESTED"].includes(
+                  versions[0].status,
+                ) &&
+                project?.role !== "REVIEWER" && (
+                  <form
+                    className="pad form"
+                    onSubmit={(e) => {
+                      const form = data(e);
+                      save.mutate({
+                        path: path + "/nodes/" + id + "/versions",
+                        body: {
+                          reason: form.reason,
+                          change_id: form.change_id || null,
+                        },
+                      });
+                    }}
+                  >
+                    <label>
+                      Причина новой редакции
+                      <input name="reason" required />
+                    </label>
+                    <label>
+                      Согласованный запрос
+                      <select
+                        name="change_id"
+                        key={changes.isPending ? "loading" : "ready"}
+                        defaultValue={
+                          approved.some(
+                            (change) => change.id === query.get("change"),
+                          )
+                            ? query.get("change")!
+                            : ""
+                        }
+                      >
+                        <option value="">Без запроса</option>
+                        {approved.map((change) => (
+                          <option key={change.id} value={change.id}>
+                            {change.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button disabled={save.isPending}>Создать редакцию</button>
+                  </form>
+                )}
+            </Panel>
           )}
-          {current?.status === "IN_REVIEW" && current.reviewer === user.id && (
-            <form
-              className="pad form"
-              onSubmit={(e) =>
-                save.mutate({ path: base + "/review", body: data(e) })
-              }
-            >
-              <label>
-                Решение
-                <select name="decision">
-                  <option value="APPROVED">Утвердить</option>
-                  <option value="CHANGES_REQUESTED">Вернуть</option>
-                </select>
-              </label>
-              <label>
-                Комментарий
-                <input name="comment" required />
-              </label>
-              <button className="primary" disabled={save.isPending}>
-                Сохранить решение
-              </button>
-            </form>
+          {related.length > 0 && (
+            <Panel title="Запросы на изменение">
+              <ul className="task-list">
+                {related.map((change) => (
+                  <li key={change.id}>
+                    <Link to={"../changes/" + change.id}>{change.title}</Link>
+                    <p>
+                      <Badge value={change.status} />
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           )}
-          {versions[0] &&
-            ["APPROVED", "CHANGES_REQUESTED"].includes(versions[0].status) &&
-            project?.role !== "REVIEWER" && (
-              <form
-                className="pad form"
-                onSubmit={(e) => {
-                  const form = data(e);
-                  save.mutate({
-                    path: path + "/nodes/" + id + "/versions",
-                    body: {
-                      reason: form.reason,
-                      change_id: form.change_id || null,
-                    },
-                  });
-                }}
-              >
-                <label>
-                  Причина новой редакции
-                  <input name="reason" required />
-                </label>
-                <label>
-                  ID согласованного запроса
-                  <input name="change_id" placeholder="Если применимо" />
-                </label>
-                <button disabled={save.isPending}>Создать редакцию</button>
-              </form>
-            )}
-        </Panel>
+        </div>
       </div>
       {versions.length > 1 && (
         <Panel title="Сравнение редакций">
@@ -446,28 +591,49 @@ export function Requirement() {
         <Grid
           columns={["Источник", "Отношение", "Цель"]}
           rows={links.map((r) => [
-            String(r.source_code),
+            r.source_id === id ? (
+              String(r.source_code)
+            ) : (
+              <Link to={"../requirements/" + r.source_id}>
+                {String(r.source_code)}
+              </Link>
+            ),
             r.kind,
-            String(r.target_code),
+            r.target_id === id ? (
+              String(r.target_code)
+            ) : (
+              <Link to={"../requirements/" + r.target_id}>
+                {String(r.target_code)}
+              </Link>
+            ),
           ])}
         />
       </Panel>
-      <Panel title="История согласований">
-        <Grid
-          columns={["Ревьюер", "Решение", "Комментарий"]}
-          rows={reviews.map((r) => [
-            String(r.reviewer_name),
-            <Badge value={String(r.decision)} />,
-            String(r.comment),
-          ])}
-        />
-      </Panel>
+      {current && (
+        <Panel title="История согласований">
+          <Grid
+            responsive
+            columns={["Редакция", "Ревьюер", "Решение", "Комментарий", "Дата"]}
+            rows={reviews.map((r) => [
+              "v" +
+                (versions.find((version) => version.id === r.version_id)
+                  ?.number ?? "—"),
+              String(r.reviewer_name),
+              <Badge value={String(r.decision)} />,
+              String(r.comment),
+              datetime(r.created_at),
+            ])}
+          />
+        </Panel>
+      )}
     </>
   );
 }
 export function GraphPage() {
   const { path, project } = useContext();
   const graph = useData<Graph>(path + "/graph");
+  const [query] = useSearchParams();
+  const origin = query.get("node") ?? undefined;
   const save = useWrite();
   const nodes = graph.data?.nodes ?? [];
   const codes = new Map(nodes.map((n) => [n.id, n.code]));
@@ -483,7 +649,13 @@ export function GraphPage() {
       <ErrorBox error={graph.error ?? save.error} />
       {graph.data ? (
         <Panel title="Зависимости">
-          <Diagram graph={graph.data} />
+          <Diagram
+            key={origin}
+            graph={graph.data}
+            origin={origin}
+            registry="../requirements/"
+            impact="../impact"
+          />
         </Panel>
       ) : (
         <Wait pending={graph.isPending} />
@@ -652,16 +824,27 @@ export function Approvals() {
       />
       <ErrorBox error={list.error} />
       <Panel title="Ожидают решения">
-        <Grid
-          columns={["Код", "Требование", "Версия", "Ревьюер", "Статус"]}
-          rows={(list.data ?? []).map((i) => [
-            i.code,
-            <Link to={"../requirements/" + i.node_id}>{i.title}</Link>,
-            "v" + i.number,
-            String(i.reviewer_name) + (i.reviewer === user.id ? " · вы" : ""),
-            <Badge value={i.status} />,
-          ])}
-        />
+        {list.isPending && <Wait pending />}
+        {!list.isPending &&
+          !list.error &&
+          (list.data?.length ? (
+            <Grid
+              responsive
+              columns={["Код", "Требование", "Версия", "Ревьюер", "Статус"]}
+              rows={(list.data ?? []).map((i) => [
+                i.code,
+                <Link to={"../requirements/" + i.node_id + "?version=" + i.id}>
+                  {i.title}
+                </Link>,
+                "v" + i.number,
+                String(i.reviewer_name) +
+                  (i.reviewer === user.id ? " · вы" : ""),
+                <Badge value={i.status} />,
+              ])}
+            />
+          ) : (
+            <Wait empty="На согласовании нет редакций." />
+          ))}
       </Panel>
     </>
   );
